@@ -1,7 +1,4 @@
-"""
-Exemplo de como seu app Tkinter deve conversar com a API
-Troque URL_BASE pelo endereço real depois que hospedar (ex: https://seu-app.onrender.com)
-"""
+
 
 import requests
 
