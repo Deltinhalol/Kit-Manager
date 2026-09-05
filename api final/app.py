@@ -7,23 +7,30 @@ Depois hospeda no Render pra ficar público
 """
 
 from flask import Flask, request, jsonify
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import sqlite3
 import os
 from functools import wraps
 
 app = Flask(__name__)
 
+# Limita quantos pedidos cada IP pode fazer, pra impedir spam automatizado
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["100 per hour"],  # limite geral pra qualquer rota
+    storage_uri="memory://",
+)
+
 CAMINHO_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Kits.db")
 
-# A chave secreta vem de uma variável de ambiente (configurada no Render em Settings > Environment)
-# Localmente, se não definir, usa "senha123" só pra testar
 CHAVE_SECRETA = os.environ.get("API_KEY", "senha123")
 
 COLUNAS = ['id', 'nome', 'camisa', 'calca', 'camisa_away', 'calca_away', 'camisa_gk', 'calca_gk']
 
 
 def requer_chave(funcao):
-    """Decorator que bloqueia a rota se não vier a chave certa no header X-API-KEY"""
     @wraps(funcao)
     def decorada(*args, **kwargs):
         chave_enviada = request.headers.get("X-API-KEY")
@@ -58,12 +65,15 @@ def criar_tabela():
     conexao.close()
 
 
+# Roda na importação, pra funcionar tanto local quanto no Gunicorn (Render)
+criar_tabela()
+
+
 @app.route("/")
 def home():
     return jsonify({"status": "API do Kit Manager rodando!"})
 
 
-# Lista todos os kits - LIVRE, sem precisar de chave
 @app.route("/kits", methods=["GET"])
 def listar_kits():
     conexao = get_conexao()
@@ -76,7 +86,6 @@ def listar_kits():
     return jsonify(kits)
 
 
-# Pega um kit específico - LIVRE, sem precisar de chave
 @app.route("/kits/<int:kit_id>", methods=["GET"])
 def pegar_kit(kit_id):
     conexao = get_conexao()
@@ -91,10 +100,10 @@ def pegar_kit(kit_id):
     return jsonify(dict(resultado))
 
 
-# Cria OU atualiza um kit (upsert) - PROTEGIDO, precisa da chave
-# Se o ID já existir, atualiza. Se não existir, cria novo.
+# Limite mais apertado nas rotas de escrita, já que são as que importam contra spam
 @app.route("/kits/<int:kit_id>", methods=["PUT"])
 @requer_chave
+@limiter.limit("30 per minute")
 def salvar_kit(kit_id):
     dados = request.get_json()
 
@@ -134,9 +143,9 @@ def salvar_kit(kit_id):
     })
 
 
-# Remove um kit - PROTEGIDO, precisa da chave
 @app.route("/kits/<int:kit_id>", methods=["DELETE"])
 @requer_chave
+@limiter.limit("30 per minute")
 def remover_kit(kit_id):
     conexao = get_conexao()
     cursor = conexao.cursor()
@@ -152,7 +161,12 @@ def remover_kit(kit_id):
     return jsonify({"mensagem": "Kit removido!"})
 
 
+# Mensagem mais clara quando alguém estoura o limite, em vez do erro padrão
+@app.errorhandler(429)
+def limite_excedido(e):
+    return jsonify({"erro": "Muitas requisições em pouco tempo. Espera um pouco e tenta de novo."}), 429
+
+
 if __name__ == "__main__":
-    criar_tabela()
     modo_debug = os.environ.get("FLASK_DEBUG", "False") == "True"
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=modo_debug)
