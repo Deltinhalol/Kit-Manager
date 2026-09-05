@@ -1,8 +1,4 @@
-"""
-API do Kit Manager - banco de dados compartilhado
-Rode localmente com: python app.py
-Depois hospeda no Render/Railway pra ficar público
-"""
+
 
 from flask import Flask, request, jsonify
 import sqlite3
@@ -15,7 +11,7 @@ CAMINHO_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Kits.db")
 
 def get_conexao():
     conexao = sqlite3.connect(CAMINHO_DB)
-    conexao.row_factory = sqlite3.Row  # permite acessar colunas pelo nome
+    conexao.row_factory = sqlite3.Row 
     return conexao
 
 
@@ -40,7 +36,7 @@ def home():
     return jsonify({"status": "API do Kit Manager rodando!"})
 
 
-# Lista todos os kits (ou filtra por time se passar ?time=Flamengo)
+
 @app.route("/kits", methods=["GET"])
 def listar_kits():
     time_filtro = request.args.get("time")
@@ -60,7 +56,7 @@ def listar_kits():
     return jsonify(kits)
 
 
-# Pega um kit específico pelo ID
+
 @app.route("/kits/<int:kit_id>", methods=["GET"])
 def pegar_kit(kit_id):
     conexao = get_conexao()
@@ -75,7 +71,7 @@ def pegar_kit(kit_id):
     return jsonify(dict(resultado))
 
 
-# Adiciona um novo kit
+
 @app.route("/kits", methods=["POST"])
 def adicionar_kit():
     dados = request.get_json()
@@ -98,7 +94,7 @@ def adicionar_kit():
     return jsonify({"mensagem": "Kit adicionado!", "id": novo_id}), 201
 
 
-# Edita um kit existente
+
 @app.route("/kits/<int:kit_id>", methods=["PUT"])
 def editar_kit(kit_id):
     dados = request.get_json()
@@ -122,7 +118,7 @@ def editar_kit(kit_id):
     return jsonify({"mensagem": "Kit atualizado!"})
 
 
-# Remove um kit
+
 @app.route("/kits/<int:kit_id>", methods=["DELETE"])
 def remover_kit(kit_id):
     conexao = get_conexao()
@@ -141,5 +137,5 @@ def remover_kit(kit_id):
 
 if __name__ == "__main__":
     criar_tabela()
-    # host="0.0.0.0" permite acesso de fora da sua máquina (necessário pra hospedar depois)
+   
     app.run(host="0.0.0.0", port=5000, debug=True)
